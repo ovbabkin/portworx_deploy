@@ -1,0 +1,151 @@
+- name: "Login to the cluster" # noqa 301 305
+  shell: "{{ oc }} login --token {{ OCP_ADMIN_TOKEN | mandatory }} {{ OCP_API_URL | mandatory }} --insecure-skip-tls-verify"
+  register: ocpaccess
+  until: ocpaccess.rc == 0
+  retries: 10
+  delay: 1
+
+- name: "Check Cluster Installation Status" # noqa 301 305 306
+  shell: |
+     {{ oc }} get storagecluster/diq-pwx -n kube-system -o jsonpath="{.status.phase}"
+  retries: 100
+  register: pwx_status
+  delay: 5
+  until: pwx_status.stdout == "Online"
+  ignore_errors: true
+
+
+- name: "Check Storage Node Installation Status" # noqa 301 305 306
+  shell: |
+     {{ oc }} get storagenode -n kube-system -o jsonpath="{.items[*].status.phase}" |sed "s/Online//g;s/ //g" # noqa 204
+  retries: 100
+  register: storage_status
+  delay: 5
+  until: storage_status.stdout == "" # noqa 602
+  ignore_errors: true
+
+- name: "Check Pod Status" # noqa 301 305 306
+  shell: |
+     {{ oc }} get pod -n kube-system -o jsonpath="{.items[*].status.phase}" |sed "s/Running//g;s/Succeeded//g;s/ //g" # noqa 204
+  retries: 100
+  register: pod_status
+  delay: 5
+  until: pod_status.stdout == "" # noqa 602
+  ignore_errors: true
+
+- name: "Get Pod name" # noqa 301 305 306
+  shell: "{{ oc }} get -n kube-system po -l storage=true -o name |head -1"
+  register: pod
+
+- name: "Get PWX cluster status" # noqa 301 305 306
+  shell: |
+    {{ oc }} rsh -n kube-system {{ pod.stdout }} bash -c "/opt/pwx/bin/pxctl status --json" | python3 -c "import sys, json; print(json.load(sys.stdin)['status'])" # noqa 204
+  register: cluster_status
+  retries: 10
+  delay: 6
+  until: cluster_status.stdout == "STATUS_OK"
+  ignore_errors: true
+
+- name: "Get Default Pool status" # noqa 301 305 306
+  shell: |
+    {{ oc }} rsh -n kube-system {{ pod.stdout }} bash -c "/opt/pwx/bin/pxctl service pool show --json" | python3 -c "import sys, json; print(json.load(sys.stdin)['datapools'][0]['Status'])" # noqa 204
+  register: pool_status
+  retries: 10
+  delay: 6
+  until: pool_status.stdout == "Up"
+
+- name: "Get Total raw PWX capacity" # noqa 301 305 306
+  shell: |
+    {{ oc }} rsh -n kube-system {{ pod.stdout }} bash -c "/opt/pwx/bin/pxctl status |tail -1" | awk -F ':  ' {'print $2'} # noqa 204
+  register: report_pwx_total_raw_capacity
+  retries: 5
+  delay: 2
+  until: report_pwx_total_raw_capacity.rc == 0
+
+- name: "Get node count in PWX" # noqa 301 305 306
+  shell: |
+    {{ oc }} rsh -n kube-system {{ pod.stdout }} bash -c "/opt/pwx/bin/pxctl status -j" |python3 -c "import sys, json; print(len(json.load(sys.stdin)['cluster']['Nodes']))" # noqa 204
+  register: report_pwx_total_node_count
+  retries: 5
+  delay: 2
+  until: report_pwx_total_node_count.rc == 0
+
+- name: "Generate random project name"
+  set_fact:
+    project_name: "pwx-func-{{ lookup('password', '/dev/null chars=ascii_lowercase,digits length=6') }}"
+
+- block:
+  - name: "Create tmp dir"
+    tempfile:
+      state: directory
+      suffix: "tests"
+    register: tests
+
+  - name: "Prepare test objects" # noqa 208
+    template:
+      src: "templates/{{ item }}"
+      dest: "{{ tests.path }}/{{ item }}"
+    loop:
+      - "pvc-replicas.yaml"
+      - "test1-job.yaml"
+      - "test1-job-check.yaml"
+
+  - name: "Create new project for Functional tests" # noqa 301 305
+    shell: "{{ oc }} new-project {{ project_name }}"
+
+  - name: "Test 1. Create New PVC with default replicas 3 and RWX mode" # noqa 301 305
+    shell: "{{ oc }} create -f {{ tests.path }}/pvc-replicas.yaml -n {{ project_name }}"
+
+  - name: "Get PV which has to be bounded to PVC" # noqa 301 305
+    shell: "{{ oc }} get pvc/pvc-replicas -n {{ project_name }} -o jsonpath='{.spec.volumeName}'"
+    register: pv_name
+    retries: 30
+    delay: 1
+    until: pv_name.stdout != "" # noqa 602
+
+  - name: "Get replica count" # noqa 301 305
+    shell: |
+      {{ oc }} rsh -n kube-system {{ pod.stdout }} bash -c "/opt/pwx/bin/pxctl volume inspect {{ pv_name.stdout }} --json" | python3 -c "import sys, json; print(json.load(sys.stdin)[0]['spec']['ha_level'])" # noqa 204
+    register: replica_count
+    retries: 10
+    delay: 1
+    until: replica_count.stdout == "3"
+
+  - name: "Get volume state" # noqa 301 305
+    shell: |
+      {{ oc }} rsh -n kube-system {{ pod.stdout }} bash -c "/opt/pwx/bin/pxctl volume inspect {{ pv_name.stdout }} --json" | python3 -c "import sys, json; print(json.load(sys.stdin)[0]['runtime_state'][0]['runtime_state']['RuntimeState'])" # noqa 204
+    register: volume_state
+    retries: 10
+    delay: 1
+    until: volume_state.stdout == "clean"
+
+  - name: "Create 5 parallel write operations from different pods" # noqa 301 305
+    shell: "{{ oc }} create -n {{ project_name }} -f {{ tests.path }}/test1-job.yaml"
+
+  - name: "Wait for finish jobs" # noqa 301 305
+    shell: "{{ oc }} get -n {{ project_name }} jobs/test1 -o jsonpath='{.status.succeeded}'"
+    register: test1_state
+    retries: 100
+    delay: 5
+    until: test1_state.stdout == "5"
+
+  - name: "Create checking job"  # noqa 301 305
+    shell: "{{ oc }} create -n {{ project_name }} -f {{ tests.path }}/test1-job-check.yaml"
+
+  - name: "Check all records" # noqa 301 305
+    shell: "{{ oc }} logs -n {{ project_name }} job/test1-check"
+    register: test1_check
+    retries: 10
+    delay: 5
+    until: test1_check.stdout == "5"
+    ignore_errors: true
+
+  always:
+   - name: "Remove Temporary objects" # noqa 301 305
+     shell: "{{ oc }} delete project {{ project_name }}"
+
+   - name: "Remove tmp folder"
+     file:
+       state: absent
+       path: "{{ tests.path }}"
+     ignore_errors: true

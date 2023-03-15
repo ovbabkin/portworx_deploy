@@ -1,0 +1,13 @@
+= Performance results
+
+[format="csv",cols="30h,10h,10h,10h,10h,15h,15h",%autowidth.stretch]
+[frame="topbot",grid="rows"]
+|===========================
+Name,PV Size,Jobs,Replica,IOPS,BW,IO
+Random Write,{{report_file_size}} GB,1,2,{{randwrite_r2_j1_result_formatted.stdout | default('Skipped,Skipped,Skipped')}}
+Random Write,{{report_file_size}} GB,5,2,{{randwrite_r2_j5_result_formatted.stdout | default('Skipped,Skipped,Skipped')}}
+Random Read,{{report_file_size}} GB,1,2,{{randread_r2_j1_result_formatted.stdout | default('Skipped,Skipped,Skipped')}}
+Random Read,{{report_file_size}} GB,5,2,{{randread_r2_j5_result_formatted.stdout | default('Skipped,Skipped,Skipped')}}
+Rand RW(70/30),{{report_file_size}} GB,1,2,{{randrw_70_30_r2_j1_result_formatted.stdout | default('Skipped,Skipped,Skipped')}}
+Rand RW(70/30),{{report_file_size}} GB,5,2,{{randrw_70_30_r2_j5_result_formatted.stdout | default('Skipped,Skipped,Skipped')}}
+|===========================

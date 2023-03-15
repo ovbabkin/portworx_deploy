@@ -1,0 +1,22 @@
+// --------------------------------
+// Various params for products
+// Please improve where needed!
+// --------------------------------
+:rh: Digital IQ
+:diq: Digital IQ
+:diqservices: {diq} Services
+
+:ocp: OpenShift Container Platform
+:rhocp: {rh} {ocp}
+
+:ocs: OpenShift Container Storage
+:rhocs: {rh} {ocs}
+
+:ans: Ansible
+:pb: Ansible Playbook
+:twr: {rh} {ans} Tower
+
+:vm: Virtual Machine
+
+:acm: Advanced Cluster Management for Kubernetes
+:rhacm: {rh} {acm}

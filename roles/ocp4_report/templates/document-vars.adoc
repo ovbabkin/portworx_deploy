@@ -1,0 +1,35 @@
+// --------------------------------
+// Document Information
+// --------------------------------
+:toc-title: Table of Contents
+
+:subject: Digital IQ Implementation Report
+:description: Portworx Storage Implementation
+
+:customer: Customer1
+:cust: customer1
+
+:confidentiality: Confidential
+
+:projectmanager: TODO_name_of_implementation_project_manager
+
+// these are required for the support chapter.
+:custgss: TODO_customer_portal_account_name
+:nogss: TODO_customer_portal_account_number
+
+
+// docstatus - indicates where in the lifecycle CER is (draft, in-progress, finish)
+:docstatus: draft
+
+
+ifeval::[ "{docstatus}" == "draft"]
+:page-background-image: image:draft.png[]
+endif::[]
+
+
+:revnumber: v1.0
+
+
+// --------------------------------
+// Other Vars
+// --------------------------------

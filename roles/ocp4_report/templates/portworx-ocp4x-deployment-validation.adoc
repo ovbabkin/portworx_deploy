@@ -1,0 +1,47 @@
+= Portworx Post Installation Verification
+
+[options="header"]
+|===
+|Check Name | Status | Comments
+
+|PWX Operator Status
+|{{ pwx_status.stdout | default('Skipped') }}
+|
+
+|Overall Nodes Status
+{% if (storage_status.stdout |default('Skipped')) == "" %}
+|Online
+|All nodes In Online
+{% else %}
+|{{ storage_status.stdout |default('Skipped') }}
+|[red yellow-background big]*WARNING:* `Bad Nodes Status`
+{% endif %}
+
+|Overall Pods Status
+{% if  (pod_status.stdout |default('Skipped')) == "" %}
+|Online
+|All pods In Online
+{% else %}
+|{{ pod_status.stdout |default('Skipped') }}
+|[red yellow-background big]*WARNING:* `Bad Pods Status`
+{% endif %}
+
+|PWX Cluster Status
+{% if (cluster_status.stdout |default('Skipped')) == "STATUS_OK" %}
+|{{ cluster_status.stdout |default('Skipped') }}
+|
+{% else %}
+|{{ cluster_status.stdout |default('Skipped') }}
+|[red yellow-background big]*WARNING:* `Bad Cluster Status`
+{% endif %}
+
+|Multi Write Test Status
+{% if ( test1_check.stdout |default('Skipped')) == '5' %}
+|OK
+| ReadWriteMany mode works
+{% else %}
+|{{ test1_check.stdout |default('Skipped') }}
+|[red yellow-background big]*WARNING:* `ReadWriteMany test was failed`
+{% endif %}
+|===
+

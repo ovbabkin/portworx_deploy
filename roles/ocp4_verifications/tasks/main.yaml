@@ -1,0 +1,79 @@
+---
+
+###Step 1 - Check basic prerequisites
+
+- name: "setup default ocp4 version"
+  set_fact: version={{ OCP_VERSION | default('4.6.4') }}
+
+- name: "Obtain oc tool" # noqa 301 305
+  shell: "which oc"
+  register: ocpath
+  ignore_errors: true
+
+- block:
+  - name: "Create tmp dir"
+    tempfile:
+      state: directory
+      suffix: "ocp4"
+    register: ocp4
+
+  - name: "Download OC tool"
+    get_url:
+     url: "https://mirror.openshift.com/pub/openshift-v4/clients/ocp/{{ version }}/openshift-client-linux-{{ version }}.tar.gz"
+     dest: "{{ ocp4.path }}"
+     mode: '0700'
+
+  - name: "Unarchive files" # noqa 301 305
+    shell: "sh -c 'tar zxvf {{ ocp4.path }}/openshift-client-linux-{{ version }}.tar.gz -C {{ ocp4.path }}'"
+
+  - name: "Set oc path"
+    set_fact:
+      oc: "{{ ocp4.path }}/oc"
+
+  when: ocpath.rc != 0
+
+- name: "Set oc path"
+  set_fact:
+    oc: "{{ ocpath.stdout }}"
+  when: ocpath.rc == 0
+
+- name: "Check version" # noqa 301 305
+  shell: "{{ oc }} version --client"
+
+###Step 2 - Check access cluster-admin to the cluster
+
+- name: "Login to the cluster" # noqa 301
+  shell: "{{ oc }} login --token {{ OCP_ADMIN_TOKEN | mandatory }} {{ OCP_API_URL | mandatory }} --insecure-skip-tls-verify" # noqa 305
+  register: ocpaccess
+  until: ocpaccess.rc == 0
+  retries: 10
+  delay: 1
+
+- name: "Get OCP Admin permissions" # noqa 301 305
+  shell: "{{ oc }} auth can-i '*' '*'"
+  register: can
+  until: can.rc == 0
+  retries: 10
+  delay: 1
+
+- name: "Check OCP Admin Permissions"
+  fail: msg="User doesn't have cluster-admin permissions"
+  when: can.stdout != "yes"
+
+- name: "Setup prometheus_url"
+  set_fact:
+    prometheus_url: "http://px-prometheus.kube-system.svc:9090"
+  when: prometheus_mode == "internal"
+
+- name: "Setup prometheus_url"
+  set_fact:
+    prometheus_url: "https://prometheus-k8s.openshift-monitoring.svc.cluster.local:9091"
+  when: prometheus_mode == "ocp4"
+
+- name: "Get basedomain for report" # noqa 301 305
+  shell: "{{ oc }} get dns/cluster -o jsonpath='{.spec.baseDomain}'"
+  register: report_cluster_name
+
+- name: "Get cluster version for report" # noqa 301 305
+  shell: "{{ oc }} get clusterversion/version -o jsonpath='{.status.desired.version}'"
+  register: report_cluster_version

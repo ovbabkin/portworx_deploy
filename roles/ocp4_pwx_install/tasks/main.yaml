@@ -1,0 +1,94 @@
+---
+
+- name: Install Portworx
+  block:
+    - name: "Create tmp dir"
+      tempfile:
+        state: directory
+        suffix: "pwx"
+      register: pwx
+
+    - name: "Generate project name"
+      set_fact:
+        random_name: "{{ lookup('password', '/dev/null chars=ascii_lowercase,digits length=6') }}"
+
+    - name: "Create tmp project" # noqa 301 305
+      shell: "{{ oc }} new-project pwx-diq-{{ random_name }}"
+
+    - name: "Create Service Account" # noqa 301 305
+      shell: "{{ item }}"
+      loop:
+        - "{{ oc }} create sa diq-admin -n pwx-diq-{{ random_name }}"
+        - "{{ oc }} adm policy add-cluster-role-to-user cluster-admin -z diq-admin -n pwx-diq-{{ random_name }}"
+
+    - name: "Get SA token. Step 1" # noqa 301 305 602
+      shell: |
+        {{ oc }} get -n pwx-diq-{{ random_name }} sa/diq-admin -o jsonpath='{range .secrets[*]}{.name}{"\n"}{end}' |grep "\-token\-"
+      register: sa_secret
+      retries: 1000
+      delay: 1
+      until: sa_secret.stdout != "" # noqa 602
+
+    - name: "Get SA token. Step 2" # noqa 301 305 602
+      shell: '{{ oc }} get -n pwx-diq-{{ random_name }} secret/{{ sa_secret.stdout }} -o jsonpath="{.data.token}" |base64 -d'
+      register: sa_token
+      retries: 1000
+      delay: 1
+      until: sa_token.stdout != "" # noqa 602
+
+    - name: "Relogin to the cluster" # noqa 301 305 602
+      shell: "{{ oc }} login --token {{ sa_token.stdout }} {{ OCP_API_URL | mandatory }} --insecure-skip-tls-verify"
+      register: ocp_relogin
+      until: ocp_relogin.rc == 0
+      retries: 10
+      delay: 1
+
+    - name: "Create cloud secret" # noqa 301 305 602
+      shell: "{{ oc }} create secret generic awscreds --from-literal=AWS_ACCESS_KEY_ID={{ aws_access_key | mandatory }} --from-literal=AWS_SECRET_ACCESS_KEY={{ aws_secret_key | mandatory }} -n kube-system --dry-run -o yaml | {{ oc }} apply -n kube-system -f -" # noqa 204
+      when: platform == "AWS" and cloud_storage|bool
+
+    - name: "Get stable version" # noqa 301 305 602
+      shell: |
+        {{ oc }} get packagemanifests/portworx-certified  -n openshift-marketplace -o jsonpath="{.status.channels[?(@.name=='stable')].currentCSV}"
+      register: pwx_version
+
+    - name: "Prepare subscription object" # noqa 208
+      template:
+        src: "templates/{{ item }}"
+        dest: "{{ pwx.path }}/{{ item }}"
+      loop:
+        - "subscription.yaml"
+        - "manifest.yaml"
+        - "operatorgroup.yaml"
+
+    - name: "Create PWX cluster" # noqa 301 305 602
+      shell: "{{ oc }} create -f {{ pwx.path }}/{{ item }} --dry-run=client -o yaml | oc apply -f -"
+      loop:
+        - "operatorgroup.yaml"
+        - "subscription.yaml"
+        - "manifest.yaml"
+      retries: 10
+      delay: 5
+      register: pwx_install
+      until: pwx_install.rc == 0
+
+    - name: "Check Installation Status" # noqa 301 305 602
+      shell: |
+        {{ oc }} get storagecluster/diq-pwx -n kube-system -o jsonpath="{.status.phase}"
+      retries: 100
+      register: pwx_status
+      delay: 5
+      until: pwx_status.stdout == "Online"
+
+    - name: "Install Router" # noqa 301 305 602
+      shell: "{{ oc }} expose svc/px-lighthouse -n kube-system --dry-run=client -o yaml | oc apply -n kube-system -f -"
+
+  always:
+   - name: "Remove Temporary objects" # noqa 301 305 602
+     shell: "{{ oc }} delete project pwx-diq-{{ random_name }}"
+
+   - name: "Remove tmp folder"
+     file:
+       state: absent
+       path: "{{ pwx.path }}"
+     ignore_errors: true

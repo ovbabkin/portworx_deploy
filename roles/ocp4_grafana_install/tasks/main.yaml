@@ -1,0 +1,109 @@
+- name: "Create tmp dir"
+  tempfile:
+    state: directory
+    suffix: "grafana"
+  register: grafana
+
+- name: "Get stable version"
+  shell: | # noqa 301 305 306
+     {{ oc }} get packagemanifests/grafana-operator  -n openshift-marketplace -o jsonpath="{.status.channels[?(@.name=='alpha')].currentCSV}"  # noqa 206
+  register: grafana_version
+
+- name: "Prepare operator objects" # noqa 208
+  template:
+    src: "templates/{{ item }}"
+    dest: "{{ grafana.path }}/{{ item }}"
+  loop:
+    - "subscription.yaml"
+    - "operatorgroup.yaml"
+    - "manifest.yaml"
+
+- name: "Create Grafana Instance" # noqa 301 305 306
+  shell: "{{ oc }} create -f {{ grafana.path }}/{{ item }} --dry-run=client -o yaml | oc apply -f -;sleep 3" # noqa 305
+  loop:
+    - "operatorgroup.yaml"
+    - "subscription.yaml"
+    - "manifest.yaml"
+  retries: 10
+  delay: 5
+
+#- set_fact:
+#    prometheus_url: "http://px-prometheus.kube-system.svc:9090"
+#  when: prometheus_mode == "internal"
+
+- block:
+  - name: "Get prometheus user list" # noqa 301 305
+    shell: |
+      {{ oc }} get secret prometheus-k8s-htpasswd -o jsonpath='{.data.auth}' -n openshift-monitoring | base64 -d > {{ grafana.path }}/htpasswd # noqa 301
+
+  - name: "Generate new password"
+    set_fact:
+      pwx_password: "{{ lookup('password', '/dev/null chars=ascii_lowercase,digits length=6') }}"
+
+  - name: "Add new user into htpasswd" # noqa 301 305
+    shell: "{{ item }}"
+    loop:
+      - "htpasswd -s -b  {{ grafana.path }}/htpasswd pwx-user {{ pwx_password }}"
+      - 'sed -i "s/=pwx/\npwx/" {{ grafana.path }}/htpasswd'
+
+  - name: "Add new user pwx-user into default OCP4 Prometheus" # noqa 301 305 306
+    shell: |
+      {{ oc }} patch secret prometheus-k8s-htpasswd -p "{\"data\":{\"auth\":\"$(base64 -w0 {{ grafana.path }}/htpasswd)\"}}" -n openshift-monitoring # noqa 206
+
+  - name: "Add prometheus rule to OCP4" # noqa 208
+    copy:
+      src: "files/{{ item }}"
+      dest: "{{ grafana.path }}/{{ item }}"
+    loop:
+      - "promrule.yaml"
+
+  - name: "Install Prometheus Rule" # noqa 301 305
+    shell: "{{ oc }} create -f {{ grafana.path }}/{{ item }} --dry-run=client -o yaml | oc apply -f -"
+    loop:
+      - "promrule.yaml"
+
+  - name: "Restart Prometheus" # noqa 301 305
+    shell: "{{ oc }} delete pods -l app=prometheus -n openshift-monitoring"
+
+#  - set_fact:
+#     prometheus_url: "https://prometheus-k8s.openshift-monitoring.svc.cluster.local:9091"
+
+  when: prometheus_mode == "ocp4"
+
+- name: "Prepare datasource object" # noqa 208
+  template:
+    src: "templates/{{ item }}"
+    dest: "{{ grafana.path }}/{{ item }}"
+  loop:
+    - "datasource.yaml"
+
+- name: "Prepare dashboard objects" # noqa 208
+  copy:
+    src: "files/{{ item }}"
+    dest: "{{ grafana.path }}/{{ item }}"
+  loop:
+    - "pwx-cluster-dashboard.yaml"
+    - "pwx-etcd-dashboard.yaml"
+    - "pwx-node-dashboard.yaml"
+    - "pwx-volume-dashboard.yaml"
+    - "pwx-operator-monitor.yaml"
+    - "pwx-monitor.yaml"
+
+- name: "Install Grafana Dashboards" # noqa 301 305
+  shell: "{{ oc }} create -f {{ grafana.path }}/{{ item }}"
+  loop:
+    - "datasource.yaml"
+    - "pwx-cluster-dashboard.yaml"
+    - "pwx-etcd-dashboard.yaml"
+    - "pwx-node-dashboard.yaml"
+    - "pwx-volume-dashboard.yaml"
+    - "pwx-operator-monitor.yaml"
+    - "pwx-monitor.yaml"
+  retries: 10
+  delay: 5
+
+- name: "Remove tmp folder"
+  file:
+    state: absent
+    path: "{{ grafana.path }}"
+  ignore_errors: true

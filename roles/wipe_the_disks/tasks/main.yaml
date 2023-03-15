@@ -1,0 +1,28 @@
+- name: Find portworx_essentials.yaml
+  shell: find /home -name portworx_essentials.yaml # noqa 301 305
+  register: pwx_config
+  delegate_to: localhost
+
+- name: Check block device in the configuration file
+  set_fact:
+    portworx_essentials: "{{ lookup('file', '{{ pwx_config.stdout }}') }}" # noqa 207
+
+- name: Parse pwx config file
+  shell: set -o pipefail && echo '{{ portworx_essentials }}' | grep '/dev/' | awk '{print $4 $10}' # noqa 301
+  register: block
+
+- name: Setting up block devices list
+  set_fact:
+    block_dev: "{{ block.stdout.split(',') | select() | list }}"
+
+- name: Read device information (always use unit when probing)
+  parted: device="{{ item }}" unit=MiB
+  register: disk_info
+  with_items: "{{ block_dev }}"
+
+- name: Remove all partitions from Portworx disks
+  parted:
+    device: "{{ item.0.disk.dev }}"
+    number: "{{ item.1.num }}"
+    state: absent
+  loop: "{{ disk_info.results|subelements('partitions') }}"

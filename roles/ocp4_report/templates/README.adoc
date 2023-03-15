@@ -1,0 +1,71 @@
+include::vars/render-vars.adoc[]
+include::vars/document-vars.adoc[]
+include::vars/diq-vars.adoc[]
+include::content/000_vars.adoc[]
+include::locale/attributes.adoc[]
+
+= {subject}: {customer} - {description}
+
+<<<
+toc::[]
+
+<<<
+include::content/legal-approved/preface.adoc[leveloffset=+1]
+
+<<<
+== Project Information
+
+=== Originator
+include::content/010_originator.adoc[leveloffset=+3]
+
+=== Owner
+include::content/020_owner.adoc[leveloffset=+3]
+
+
+<<<
+== Overview
+
+=== About {cust}
+include::content/080_about-the-customer.adoc[leveloffset=+3]
+
+<<<
+=== Documentation Provided By {cust}
+include::content/090_customer-provided-documentation.adoc[leveloffset=+3]
+
+<<<
+=== Purpose And Engagement Approach
+include::content/100_purpose-and-approach.adoc[leveloffset=+3]
+
+<<<
+=== Scope Summary
+include::content/110_scope-summary.adoc[leveloffset=+3]
+
+<<<
+== Implementation Details
+
+=== Technical Implementation
+include::content/140_implementation.adoc[leveloffset=+3]
+
+<<<
+=== Validation Procedure
+include::content/150_validation.adoc[leveloffset=+3]
+
+<<<
+=== Performance Tests
+include::content/160_performance.adoc[leveloffset=+3]
+
+<<<
+[appendix]
+== Relevant Links
+include::content/230_relevant-links.adoc[leveloffset=+2]
+
+//<<<
+//[appendix]
+//== Statement of Work
+//include::content/240_statement-of-work.adoc[leveloffset=+2]
+
+<<<
+include::content/legal-approved/subscriptions.adoc[leveloffset=+1]
+
+//<<<
+//include::content/legal-approved/support.adoc[leveloffset=+1]

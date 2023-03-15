@@ -1,0 +1,31 @@
+---
+- hosts: localhost
+  gather_facts: false
+  roles:
+    - role: ocp4_verifications
+      tags:
+       - grafana
+       - pwx
+      when: infra_type == "ocp4"
+    - role: ocp4_pwx_remove
+      tags:
+       - pwx
+      when: infra_type == "ocp4"
+    - role: ocp4_grafana_remove
+      tags:
+       - grafana
+      when: infra_type == "ocp4"
+
+- hosts: kube-master[0]
+  gather_facts: false
+  any_errors_fatal: "{{ any_errors_fatal | default(true) }}"
+  roles:
+    - role: remove_cluster
+      when: infra_type == "kubernetes"
+      
+- hosts: kube-node
+  gather_facts: false
+  any_errors_fatal: "{{ any_errors_fatal | default(true) }}"
+  roles:
+    - role: wipe_the_disks
+      when: infra_type == "kubernetes"

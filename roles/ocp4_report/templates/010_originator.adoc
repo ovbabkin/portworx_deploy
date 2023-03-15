@@ -1,0 +1,12 @@
+////
+Purpose
+-------
+This indicates the group who initialized this document.  It should normally be
+"Digital IQ."
+
+Sample
+------
+Digital IQ Consulting
+////
+
+Digital IQ

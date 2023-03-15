@@ -1,0 +1,74 @@
+- name: "Login to the cluster" # noqa 301 305
+  shell: "{{ oc }} login --token {{ OCP_ADMIN_TOKEN | mandatory }} {{ OCP_API_URL | mandatory }} --insecure-skip-tls-verify"
+  register: ocpaccess
+  until: ocpaccess.rc == 0
+  retries: 10
+  delay: 1
+
+- name: "Generate random project name"
+  set_fact:
+    project_name: "pwx-report-{{ lookup('password', '/dev/null chars=ascii_lowercase,digits length=6') }}"
+
+- name: "Create tmp dir"
+  tempfile:
+    state: directory
+    suffix: "report"
+  register: report
+
+- name: "Get the list of templates to transfer" # noqa 301 306
+  local_action: "shell ls roles/ocp4_report/templates/* | sed 's~.*/~~g'" # noqa 504
+  register: template_files
+
+- name: "Iterate and send templates" # noqa 208
+  template: src=templates/{{ item }} dest={{ report.path }}/{{ item }}
+  with_items:
+  - "{{ template_files.stdout.splitlines() }}"
+
+- name: "Get the list of binary to transfer" # noqa 301 306
+  local_action: "shell ls roles/ocp4_report/files/* | sed 's~.*/~~g'" # noqa 504
+  register: binary_files
+
+- name: "Iterate and send binary" # noqa 208
+  copy: src=files/{{ item }} dest={{ report.path }}/{{ item }}
+  with_items:
+  - "{{ binary_files.stdout.splitlines() }}"
+
+- name: "Copy Deployment Yaml" # noqa 208
+  copy: src=yamls/report.yaml dest={{ report.path }}/report.yaml
+
+- block:
+  - name: "Create new project for report" # noqa 301 305
+    shell: "{{ oc }} new-project {{ project_name }}"
+
+  - name: "Create Configmap" # noqa 301 305
+    shell: "{{ oc }} create -n {{ project_name }} configmap report --from-file={{ report.path }}"
+
+  - name: "Creare Report Generation"  # noqa 301 305
+    shell: "{{ oc }} create  -n {{ project_name }} -f {{ report.path }}/report.yaml"
+
+  - name: "Get Pod Name1"  # noqa 301 305
+    shell: "{{ oc }} get pod  -n {{ project_name }} -o name -l app=report |awk -F'/' {'print $2'}"
+    register: report_podname
+    retries: 20
+    delay: 5
+    until: report_podname.stdout != "" # noqa 602
+
+  - name: "Copy report to Ansible Directory"
+    shell: |
+       {{ oc }} cp  -n {{ project_name }} {{ report_podname.stdout }}:/tmp/pwx-report-customer.pdf /tmp/pwx-report-customer-$(date +%m-%d-%y).pdf # noqa 504
+    register: report_status
+    retries: 20
+    delay: 5
+    until: report_status.stdout != "" and report_status.stdout_lines|count == 1 # noqa 602
+    delegate_to: localhost
+
+
+  always:
+   - name: "Remove Temporary objects" # noqa 301 305
+     shell: "{{ oc }} delete project {{ project_name }}"
+
+   - name: "Remove tmp folder"
+     file:
+       state: absent
+       path: "{{ report.path }}"
+     ignore_errors: true

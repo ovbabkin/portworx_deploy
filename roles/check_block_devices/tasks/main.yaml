@@ -1,0 +1,40 @@
+- name: Find portworx_essentials.yaml
+  find:
+    paths: /home
+    patterns: 'portworx_essentials*'
+    recurse: yes
+  register: pwx_config
+  delegate_to: localhost
+
+- name: Setting up config path
+  set_fact:
+    pwx_config_path: "{{ item.path }}"
+  with_items: "{{ pwx_config.files }}"
+
+- name: Check block device in the configuration file
+  set_fact:
+    portworx_essentials: "{{ lookup('file', '{{ pwx_config_path }}') }}" # noqa 207
+
+- name: Parse pwx config file
+  shell: set -o pipefail && echo '{{ portworx_essentials }}' | grep '/dev[^,"]\+' -o # noqa 301
+  register: block
+
+- name: Setting up block devices list
+  set_fact:
+    block_dev: "{{ block.stdout.split(',') | select() | list }}"
+
+- name: Checking that block devices are exists
+  stat:
+    path: "{{ item }}"
+  register: devices
+  with_items: "{{ block_dev }}"
+
+- name: Fail if block device wasn't found on the machine
+  fail:
+    msg: "Fail, block device {{ item.path }} was not found on the machine"
+  when: not item.stat.exists
+  with_items: "{{ devices.results }}"
+
+- name: Important Information
+  debug:
+    msg: "All devices are exist, proceed to cluster installation"

@@ -1,0 +1,24 @@
+apiVersion: integreatly.org/v1alpha1
+kind: GrafanaDataSource
+metadata:
+  name: pwx-prometheus-datasource
+  namespace: kube-system
+spec:
+  datasources:
+    - access: proxy
+{% if "{{prometheus_mode}}" != "internal" %}
+      basicAuthUser: pwx-user
+      secureJsonData:
+        basicAuthPassword: {{pwx_password| default('null')}}
+{% endif %}
+      editable: true
+      name: prometheus
+      url: {{prometheus_url}}
+      jsonData:
+        timeInterval: 5s
+        tlsSkipVerify: true
+      basicAuth: true
+      isDefault: true
+      version: 1
+      type: prometheus
+  name: default-datasources.yaml

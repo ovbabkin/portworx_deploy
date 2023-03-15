@@ -1,0 +1,71 @@
+apiVersion: core.libopenstorage.org/v1
+kind: StorageCluster
+metadata:
+  namespace: kube-system
+  name: {{cluster_name | default('portworx')}}
+  annotations:
+    portworx.io/is-openshift: 'true'
+  labels:
+    owner: diq
+spec:
+{% if image_version %}
+  image: portworx/oci-monitor:{{image_version}}
+{% endif %}
+  imagePullPolicy: Always
+  security:
+{% if security|bool %}
+    enabled: true
+{% else %}
+    enabled: false
+{% endif %}
+{% if cloud_storage|bool %}
+  cloudStorage:
+    deviceSpecs:
+    - type={{pwx_storage_type | default('gp2')}},size={{pwx_disk_size | default('50')}}
+{% endif %}
+{% if kvdb_mode == "internal" %}
+    kvdbDeviceSpec: type={{kvdb_storage_type | default('gp2')}},size={{kvdb_disk_size | default('50')}}
+{% endif %}
+  stork:
+{% if stork|bool %}
+    enabled: true
+{% else %}
+    enabled: false
+{% endif %}
+  monitoring:
+    enableMetrics: true
+    prometheus:
+      enabled: true
+      exportMetrics: true
+  autopilot:
+{% if autopilot|bool %}
+    enabled: true
+{% else %}
+    enabled: false
+{% endif %}
+    providers:
+      - name: default
+        params:
+          url: '{{prometheus_url}}'
+        type: prometheus
+{% if kvdb_mode == "internal" %}
+  kvdb:
+    internal: true
+{% endif %}
+{% if platform == "AWS" and cloud_storage|bool %}
+  env:
+    - name: AWS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          key: AWS_ACCESS_KEY_ID
+          optional: false
+          name: awscreds
+    - name: AWS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          key: AWS_SECRET_ACCESS_KEY
+          name: awscreds
+{% endif %}
+  userInterface:
+    enabled: true
+  secretsProvider: k8s

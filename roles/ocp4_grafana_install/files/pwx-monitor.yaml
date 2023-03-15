@@ -1,0 +1,17 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    name: portworx
+    prometheus: portworx
+  name: portworx
+  namespace: openshift-monitoring
+spec:
+  endpoints:
+  - port: px-api
+  - port: px-kvdb
+  namespaceSelector:
+    any: true
+  selector:
+    matchLabels:
+      name: portworx

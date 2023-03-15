@@ -1,0 +1,43 @@
+---
+- name: check the path to kubectl
+  command: find / -name kubectl # noqa 301
+  retries: 5
+  delay: 2
+  register: kubectl
+
+- name: Ensure that kube config are present
+  stat:
+    path: /root/.kube/config
+  register: kubeconfig
+
+- name: Fail if k8s configuration was not found
+  fail:
+    msg: "Kuberbernetes configuration was not found in the default folder"
+  when: kubeconfig.stat.exists == 'true'
+
+- name: Copy portworx configuration file to the remote master node
+  copy:
+    src: portworx_essentials.yaml
+    dest: /root/portworx_essentials.yaml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Apply portworx configuration to the kubernetes cluster
+  command: '{{ kubectl.stdout }} apply -f /root/portworx_essentials.yaml' # noqa 301
+
+- name: Check that portworx has been deployed
+  shell: set -o pipefail && '{{ kubectl.stdout }} get pods -l name=portworx -n kube-system | head -n4 | grep 1/1 | wc -l' # noqa 301
+  retries: 60
+  delay: 10
+  register: result
+  until: result.stdout == "3"
+
+- name: Cleanup the pwx config file from the node
+  file:
+    path: /root/portworx_essentials.yaml
+    state: absent
+
+- debug:
+    msg: "Portworx cluster has been deployed"
+

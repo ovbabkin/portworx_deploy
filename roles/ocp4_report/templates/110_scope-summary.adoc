@@ -1,0 +1,24 @@
+This section details strategy to assist {cust} with meeting their goals for this engagement.  The following table outlines the focus of each phase.
+
+.Engagement Scope Summary
+[cols=3*,cols="1,2,5",option="header"]
+|===
+| Sprint
+| Week
+| Objectives
+
+// Sprint
+.2+|1
+
+// Week
+| Jan 8 - Jan 13
+
+// Objectives
+a|
+- Design and MVP Review
+- Product Installation and Basic Function Tests
+- Performance Tests
+- Generate Engagement Report
+- Customization Begins
+
+|===

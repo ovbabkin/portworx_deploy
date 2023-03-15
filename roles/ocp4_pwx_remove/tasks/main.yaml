@@ -1,0 +1,33 @@
+---
+
+- name: "Uninstall Portworx"
+  shell: "{{ item }}" # noqa 301 305
+  ignore_errors: true
+  loop:
+   - "{{ oc }} delete storagecluster --all -n kube-system"
+   - "sleep 10"
+   - "{{ oc }} delete subscription/portworx-certified -n kube-system"
+   - "{{ oc }} delete csv -l operators.coreos.com/portworx-certified.kube-system= -n kube-system"
+   - "{{ oc }} delete route/px-lighthouse -n kube-system"
+
+- name: "Delete secrets,configmaps"
+  shell: "{{ item }}" # noqa 301 305
+  loop:
+    - "{{ oc }} delete secret awscreds -n kube-system"
+    - "{{ oc }} delete secret lh-kubeconfig-secret -n kube-system"
+    - "{{ oc }} delete cm px-lighthouse-config -n kube-system"
+  ignore_errors: true
+
+- name: "Delete Storage classes"
+  shell: "oc delete {{ item }}" # noqa 301 305
+  loop:
+    - "storageclass.storage.k8s.io/px-db"
+    - "storageclass.storage.k8s.io/px-db-cloud-snapshot"
+    - "storageclass.storage.k8s.io/px-db-cloud-snapshot-encrypted"
+    - "storageclass.storage.k8s.io/px-db-encrypted"
+    - "storageclass.storage.k8s.io/px-db-local-snapshot"
+    - "storageclass.storage.k8s.io/px-db-local-snapshot-encrypted"
+    - "storageclass.storage.k8s.io/px-replicated"
+    - "storageclass.storage.k8s.io/px-replicated-encrypted"
+    - "storageclass.storage.k8s.io/stork-snapshot-sc"
+  ignore_errors: true

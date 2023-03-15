@@ -1,0 +1,233 @@
+- name: "Login to the cluster" # noqa 301 305
+  shell: "{{ oc }} login --token {{ OCP_ADMIN_TOKEN | mandatory }} {{ OCP_API_URL | mandatory }} --insecure-skip-tls-verify"
+  register: ocpaccess
+  until: ocpaccess.rc == 0
+  retries: 10
+  delay: 1
+
+- name: "Generate random project name"
+  set_fact:
+    project_name: "pwx-perf-{{ lookup('password', '/dev/null chars=ascii_lowercase,digits length=6') }}"
+
+- block:
+  - name: "Create tmp dir"
+    tempfile:
+      state: directory
+      suffix: "perf"
+    register: perf
+
+  - name: "Prepare perf-test objects" # noqa 208
+    template:
+      src: "templates/{{ item }}"
+      dest: "{{ perf.path }}/{{ item }}"
+    loop:
+      - "parser.py"
+      - "cm-fio.yaml"
+      - "pvc-perf-repl-2.yaml"
+      - "pvc-perf-repl-3.yaml"
+      - "job-perf-fullwrite-r2-j1.yaml"
+      - "job-perf-randread-r2-j1.yaml"
+      - "job-perf-randwrite-r2-j1.yaml"
+#      - "job-perf-fullwrite-r2-j5.yaml"
+      - "job-perf-randread-r2-j5.yaml"
+      - "job-perf-randwrite-r2-j5.yaml"
+      - "job-perf-randrw-70-30-r2-j1.yaml"
+      - "job-perf-randrw-70-30-r2-j5.yaml"
+
+  - name: "Create new project for Performance tests" # noqa 301 305
+    shell: "{{ oc }} new-project {{ project_name }}"
+
+  - name: "Preparation step. Create New PVCs and ConfigMap with tests" # noqa 301 305
+    shell: "{{ oc }} create -f {{ perf.path }}/{{ item }} -n {{ project_name }}"
+    loop:
+      - "cm-fio.yaml"
+      - "pvc-perf-repl-2.yaml"
+      - "pvc-perf-repl-3.yaml"
+
+############## Full Write(prepare file)
+
+  - block:
+    - name: "Test 0. Test Full Write 2 replica count and 1 job" # noqa 301 305
+      shell: "{{ oc }} create -f {{ perf.path }}/job-perf-fullwrite-r2-j1.yaml -n {{ project_name }}"
+
+    - name: "Test 0. Wait for finish job" # noqa 301 305
+      shell: "{{ oc }} get -n {{ project_name }} jobs/perf-fullwrite-r2-j1 -o jsonpath='{.status.succeeded}'"
+      register: perf_test0_state
+      retries: "{{ report_random_runtime }}"
+      delay: 6
+      until: perf_test0_state.stdout == "1"
+
+    - name: "Test 0. Get results" # noqa 301 305
+      shell: "{{ oc }} logs -l job-name=perf-fullwrite-r2-j1 --tail=-1 -n {{ project_name }}"
+      register: fullwrite_r2_j1_result
+
+#  - block:
+#    - name: "Test 2. Test Full Write 2 replica count and 5 jobs" # noqa 301 305
+#      shell: "{{ oc }} create -f {{ perf.path }}/job-perf-fullwrite-r2-j5.yaml -n {{ project_name }}"
+
+#    - name: "Test 2. Wait for finish jobs" # noqa 301 305
+#      shell: "{{ oc }} get -n {{ project_name }} jobs/perf-fullwrite-r2-j5 -o jsonpath='{.status.succeeded}'"
+#      register: perf_test2_state
+#      retries: "{{ report_random_runtime }}"
+#      delay: 3
+#      until: perf_test2_state.stdout == "5"
+
+#    - name: "Test 2. Get results" # noqa 301 305
+#      shell: "{{ oc }} logs -l job-name=perf-fullwrite-r2-j5 --tail=-1  -n {{ project_name }}"
+#      register: fullwrite_r2_j5_result
+
+#    - name: "Get Performance info for test fullwrite_r2_j1" # noqa 301 305
+#      shell: "echo '{{ fullwrite_r2_j1_result.stdout }}'  | python3 {{ perf.path }}/parser.py"
+#      register: fullwrite_r2_j1_result_formatted
+
+#    - name: "Get Performance info for test fullwrite_r2_j5" # noqa 301 305
+#      shell: "echo '{{ fullwrite_r2_j5_result.stdout }}'  | python3 {{ perf.path }}/parser.py"
+#      register: fullwrite_r2_j5_result_formatted
+############## Random Read test
+
+  - block:
+    - name: "Test 1. Test Random Read 2 replica count and 1 job" # noqa 301 305
+      shell: "{{ oc }} create -f {{ perf.path }}/job-perf-randread-r2-j1.yaml -n {{ project_name }}"
+
+    - name: "Test 1. Wait for finish job" # noqa 301 305
+      shell: "{{ oc }} get -n {{ project_name }} jobs/perf-randread-r2-j1 -o jsonpath='{.status.succeeded}'"
+      register: perf_test1_state
+      retries: "{{ report_random_runtime }}"
+      delay: 3
+      until: perf_test1_state.stdout == "1"
+
+    - name: "Test 1. Get results" # noqa 301 305
+      shell: "{{ oc }} logs -l job-name=perf-randread-r2-j1 --tail=-1 -n {{ project_name }}"
+      register: randread_r2_j1_result
+
+  - block:
+    - name: "Test 2. Test Random Read 2 replica count and 5 jobs" # noqa 301 305
+      shell: "{{ oc }} create -f {{ perf.path }}/job-perf-randread-r2-j5.yaml -n {{ project_name }}"
+
+    - name: "Test 2. Wait for finish jobs" # noqa 301 305
+      shell: "{{ oc }} get -n {{ project_name }} jobs/perf-randread-r2-j5 -o jsonpath='{.status.succeeded}'"
+      register: perf_test2_state
+      retries: "{{ report_random_runtime }}"
+      delay: 3
+      until: perf_test2_state.stdout == "5"
+
+    - name: "Test 2. Get results" # noqa 301 305
+      shell: "{{ oc }} logs -l job-name=perf-randread-r2-j5  --tail=-1 -n {{ project_name }}"
+      register: randread_r2_j5_result
+
+    - name: "Copy test 1 result to file"
+      local_action: "copy content={{ randread_r2_j1_result.stdout }} dest={{ perf.path }}/randread_r2_j1_result.stdout"  # noqa 504
+
+    - name: "Copy test 2 result to file"
+      local_action: "copy content={{ randread_r2_j5_result.stdout }} dest={{ perf.path }}/randread_r2_j5_result.stdout"  # noqa 504
+
+    - name: "Get Performance info for test randread_r2_j1" # noqa 301 305
+      shell: "python3 {{ perf.path }}/parser.py {{ perf.path }}/randread_r2_j1_result.stdout"
+      register: randread_r2_j1_result_formatted
+
+    - name: "Get Performance info for test randread_r2_j5" # noqa 301 305
+      shell: "python3 {{ perf.path }}/parser.py {{ perf.path }}/randread_r2_j5_result.stdout"
+      register: randread_r2_j5_result_formatted
+
+############## Random Write test
+
+  - block:
+    - name: "Test 3. Test Random Write 2 replica count and 1 job" # noqa 301 305
+      shell: "{{ oc }} create -f {{ perf.path }}/job-perf-randwrite-r2-j1.yaml -n {{ project_name }}"
+
+    - name: "Test 3. Wait for finish job" # noqa 301 305
+      shell: "{{ oc }} get -n {{ project_name }} jobs/perf-randwrite-r2-j1 -o jsonpath='{.status.succeeded}'"
+      register: perf_test3_state
+      retries: "{{ report_random_runtime }}"
+      delay: 3
+      until: perf_test3_state.stdout == "1"
+
+    - name: "Test 3. Get results" # noqa 301 305
+      shell: "{{ oc }} logs -l job-name=perf-randwrite-r2-j1 --tail=-1 -n {{ project_name }}"
+      register: randwrite_r2_j1_result
+
+  - block:
+    - name: "Test 4. Test Random Write 2 replica count and 5 jobs" # noqa 301 305
+      shell: "{{ oc }} create -f {{ perf.path }}/job-perf-randwrite-r2-j5.yaml -n {{ project_name }}"
+
+    - name: "Test 4. Wait for finish jobs" # noqa 301 305
+      shell: "{{ oc }} get -n {{ project_name }} jobs/perf-randwrite-r2-j5 -o jsonpath='{.status.succeeded}'"
+      register: perf_test4_state
+      retries: "{{ report_random_runtime }}"
+      delay: 3
+      until: perf_test4_state.stdout == "5"
+
+    - name: "Test 4. Get results" # noqa 301 305
+      shell: "{{ oc }} logs -l job-name=perf-randwrite-r2-j5 --tail=-1 -n {{ project_name }}"
+      register: randwrite_r2_j5_result
+
+    - name: "Copy test 3 result to file"
+      local_action: "copy content={{ randwrite_r2_j1_result.stdout }} dest={{ perf.path }}/randwrite_r2_j1_result.stdout"  # noqa 504
+
+    - name: "Copy test 4 result to file"
+      local_action: "copy content={{ randwrite_r2_j5_result.stdout }} dest={{ perf.path }}/randwrite_r2_j5_result.stdout"  # noqa 504
+
+    - name: "Get Performance info for test randwrite_r2_j1" # noqa 301 305
+      shell: "python3 {{ perf.path }}/parser.py {{ perf.path }}/randwrite_r2_j1_result.stdout"
+      register: randwrite_r2_j1_result_formatted
+
+    - name: "Get Performance info for test randwrite_r2_j5" # noqa 301 305
+      shell: "python3 {{ perf.path }}/parser.py {{ perf.path }}/randwrite_r2_j5_result.stdout"
+      register: randwrite_r2_j5_result_formatted
+
+############## Random Read-Write(70/30) test
+
+  - block:
+    - name: "Test 5. Test Random Read-Write(70/30) 2 replica count and 1 job" # noqa 301 305
+      shell: "{{ oc }} create -f {{ perf.path }}/job-perf-randrw-70-30-r2-j1.yaml -n {{ project_name }}"
+
+    - name: "Test 5. Wait for finish job" # noqa 301 305
+      shell: "{{ oc }} get -n {{ project_name }} jobs/perf-randrw-70-30-r2-j1 -o jsonpath='{.status.succeeded}'"
+      register: perf_test5_state
+      retries: "{{ report_random_runtime }}"
+      delay: 3
+      until: perf_test5_state.stdout == "1"
+
+    - name: "Test 5. Get results" # noqa 301 305
+      shell: "{{ oc }} logs -l job-name=perf-randrw-70-30-r2-j1 --tail=-1 -n {{ project_name }}"
+      register: randrw_70_30_r2_j1_result
+
+  - block:
+    - name: "Test 6. Test Random Read-Write(70/30) 2 replica count and 5 jobs" # noqa 301 305
+      shell: "{{ oc }} create -f {{ perf.path }}/job-perf-randrw-70-30-r2-j5.yaml -n {{ project_name }}"
+
+    - name: "Test 6. Wait for finish jobs" # noqa 301 305
+      shell: "{{ oc }} get -n {{ project_name }} jobs/perf-randrw-70-30-r2-j5 -o jsonpath='{.status.succeeded}'"
+      register: perf_test6_state
+      retries: "{{ report_random_runtime }}"
+      delay: 3
+      until: perf_test6_state.stdout == "5"
+
+    - name: "Test 6. Get results" # noqa 301 305
+      shell: "{{ oc }} logs -l job-name=perf-randrw-70-30-r2-j5 --tail=-1 -n {{ project_name }}"
+      register: randrw_70_30_r2_j5_result
+
+    - name: "Copy test 5 result to file"
+      local_action: "copy content={{ randrw_70_30_r2_j1_result.stdout }} dest={{ perf.path }}/randrw_70_30_r2_j1_result.stdout"  # noqa 504
+
+    - name: "Copy test 6 result to file"
+      local_action: "copy content={{ randrw_70_30_r2_j5_result.stdout }} dest={{ perf.path }}/randrw_70_30_r2_j5_result.stdout"  # noqa 504
+
+    - name: "Get Performance info for test randrw_70_30_r2_j1" # noqa 301 305
+      shell: "python3 {{ perf.path }}/parser.py {{ perf.path }}/randrw_70_30_r2_j1_result.stdout"
+      register: randrw_70_30_r2_j1_result_formatted
+
+    - name: "Get Performance info for test randrw_70_30_r2_j5" # noqa 301 305
+      shell: "python3 {{ perf.path }}/parser.py {{ perf.path }}/randrw_70_30_r2_j5_result.stdout"
+      register: randrw_70_30_r2_j5_result_formatted
+
+  always:
+   - name: "Remove Temporary objects" # noqa 301 305
+     shell: "{{ oc }} delete project {{ project_name }}"
+     ignore_errors: true
+
+   - name: "Remove tmp folder"
+     file:
+       state: absent
+       path: "{{ perf.path }}"
+     ignore_errors: true

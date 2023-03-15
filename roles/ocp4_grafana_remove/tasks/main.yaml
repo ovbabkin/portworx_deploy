@@ -1,0 +1,12 @@
+---
+
+- name: "Uninstall Grafana for Portworx"
+  shell: "{{ item }}" # noqa 301 305
+  ignore_errors: true
+  loop:
+   - "{{ oc }} delete grafanadatasource,grafanadashboard,grafana  --all -n kube-system"
+   - "sleep 10"
+   - "{{ oc }} delete subscription/grafana-operator -n kube-system"
+   - "{{ oc }} delete csv -l operators.coreos.com/grafana-operator.kube-system= -n kube-system"
+   - "{{ oc }} delete PrometheusRule/prometheus-portworx-rules -n openshift-monitoring"
+   - "{{ oc }} delete -n openshift-monitoring servicemonitor/portworx servicemonitor/portworx-operator-metrics servicemonitor/autopilot-prometheus-sm"

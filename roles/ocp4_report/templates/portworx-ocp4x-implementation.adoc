@@ -1,0 +1,52 @@
+= Openshift Details
+Cluster Domain Name: `{{ report_cluster_name.stdout |default('Skipped') }}`.
+
+Cluster Version: `{{ report_cluster_version.stdout |default('Skipped') }}`.
+
+= Portworx Details
+Portworx Project Name: `kube-system`.
+
+Portworx Cluster Name: `{{ cluster_name }}`.
+
+Portworx Version: `{{ image_version |default('Undefined') }}`.
+{% if  cloud_storage|bool  %}
+
+Portworx Storage: `{{ platform }} Cloud Storage`.
+
+Portworx Storage Type: `{{ pwx_storage_type }}`.
+{% else %}
+
+Portworx Storage: `Local Disks`.
+{% endif %}
+
+Portworx Total Raw Storage Capacity: `{{ report_pwx_total_raw_capacity.stdout |default('Skipped') }}`.
+
+Portworx Total Storage Nodes: `{{ report_pwx_total_node_count.stdout |default('Skipped') }}`.
+
+= Portworx Features
+[options="header"]
+|===
+|Name | Active | Comments
+
+|Autopilot
+|yes
+|Requires manually checking
+
+|Security
+|no
+|
+
+|Stork
+|yes
+|Requires manually checking
+
+|Monitoring
+|yes
+{% if "{{ prometheus_mode }}" == "ocp4" %}
+|Using Openshift Default Prometheus
+{% elif "{{ prometheus_mode }}" == "external" %}
+|Using External Prometheus
+{% else %}
+|Using Internal Prometheus in the Portworx project
+{% endif %}
+|===

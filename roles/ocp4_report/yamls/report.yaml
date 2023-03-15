@@ -1,0 +1,145 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  generation: 1
+  labels:
+    app: report
+  name: report
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: report
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: report
+    spec:
+      containers:
+      - command:
+        - 'bash'
+        args:
+        - '-c'
+        - >-
+           asciidoctor-pdf -a lang=en_US -r asciidoctor-diagram --out-file /tmp/pwx-report-customer.pdf README.adoc &&
+           sleep infinity
+        image: quay.io/redhat-cop/ubi8-asciidoctor:v1.3
+        imagePullPolicy: IfNotPresent
+        name: report
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /documents/README.adoc
+          name: report
+          subPath: README.adoc
+        - mountPath: /documents/styles.md
+          name: report
+          subPath: styles.md
+        - mountPath: /documents/content/000_vars.adoc
+          name: report
+          subPath: 000_vars.adoc
+        - mountPath: /documents/content/010_originator.adoc
+          name: report
+          subPath: 010_originator.adoc
+        - mountPath: /documents/content/020_owner.adoc
+          name: report
+          subPath: 020_owner.adoc
+        - mountPath: /documents/content/080_about-the-customer.adoc
+          name: report
+          subPath: 080_about-the-customer.adoc
+        - mountPath: /documents/content/090_customer-provided-documentation.adoc
+          name: report
+          subPath: 090_customer-provided-documentation.adoc
+        - mountPath: /documents/content/100_purpose-and-approach.adoc
+          name: report
+          subPath: 100_purpose-and-approach.adoc
+        - mountPath: /documents/content/110_scope-summary.adoc
+          name: report
+          subPath: 110_scope-summary.adoc
+        - mountPath: /documents/content/140_implementation.adoc
+          name: report
+          subPath: 140_implementation.adoc
+        - mountPath: /documents/content/150_validation.adoc
+          name: report
+          subPath: 150_validation.adoc
+        - mountPath: /documents/content/160_performance.adoc
+          name: report
+          subPath: 160_performance.adoc
+        - mountPath: /documents/content/230_relevant-links.adoc
+          name: report
+          subPath: 230_relevant-links.adoc
+        - mountPath: /documents/content/Portworx/portworx-ocp4x-deployment-validation.adoc
+          name: report
+          subPath: portworx-ocp4x-deployment-validation.adoc
+        - mountPath: /documents/content/Portworx/portworx-ocp4x-implementation.adoc
+          name: report
+          subPath: portworx-ocp4x-implementation.adoc
+        - mountPath: /documents/content/Portworx/portworx-ocp4x-performance.adoc
+          name: report
+          subPath: portworx-ocp4x-performance.adoc
+        - mountPath: /documents/content/legal-approved/preface.adoc
+          name: report
+          subPath: preface.adoc
+        - mountPath: /documents/content/legal-approved/subscriptions.adoc
+          name: report
+          subPath: subscriptions.adoc
+        - mountPath: /documents/content/legal-approved/support.adoc
+          name: report
+          subPath: support.adoc
+        - mountPath: /documents/styles/pdf/base-theme.yml
+          name: report
+          subPath: base-theme.yml
+        - mountPath: /documents/styles/pdf/default-theme.yml
+          name: report
+          subPath: default-theme.yml
+        - mountPath: /documents/images/draft.png
+          name: report
+          subPath: draft.png
+        - mountPath: /documents/images/draft.xcf
+          name: report
+          subPath: draft.xcf
+        - mountPath: /documents/locale/attributes-en_GB.adoc
+          name: report
+          subPath: attributes-en_GB.adoc
+        - mountPath: /documents/locale/attributes-en_US.adoc
+          name: report
+          subPath: attributes-en_US.adoc
+        - mountPath: /documents/locale/attributes-es_US.adoc
+          name: report
+          subPath: attributes-es_US.adoc
+        - mountPath: /documents/locale/attributes.adoc
+          name: report
+          subPath: attributes.adoc
+        - mountPath: /documents/scripts/asciidoc-coalescer.rb
+          name: report
+          subPath: asciidoc-coalescer.rb
+        - mountPath: /documents/scripts/coalesce-asciidoc
+          name: report
+          subPath: coalesce-asciidoc
+        - mountPath: /documents/vars/diq-vars.adoc
+          name: report
+          subPath: diq-vars.adoc
+        - mountPath: /documents/vars/document-vars.adoc
+          name: report
+          subPath: document-vars.adoc
+        - mountPath: /documents/vars/render-vars.adoc
+          name: report
+          subPath: render-vars.adoc
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - configMap:
+          defaultMode: 0640
+          name: report
+        name: report

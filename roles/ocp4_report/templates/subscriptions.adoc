@@ -1,0 +1,15 @@
+
+[appendix]
+= Portworx Subscriptions Overview
+
+Three factors play an important part in selecting the right product subscription:
+
+* The (Service Level Agreement) SLA
+* The number of (physical) Sockets and VCPU
+* The number of Virtual Machines.
+* Raw storage capacity
+
+
+== Service Level Agreement
+An important part of a subscription is access to Digital IQ support. The SLA associated with a subscription plays an important part for the customer here as this defines response times.
+

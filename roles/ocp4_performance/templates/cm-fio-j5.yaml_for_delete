@@ -1,0 +1,87 @@
+{% set size=report_file_size|int // 5 %}
+apiVersion: v1
+data:
+  fullwrite.fio: |
+    #Full Sequential Write Test
+    [global]
+    size={{ report_file_size }}G
+    filesize={{ report_file_size }}G
+    filename=/tmp/storage/fiofile
+    direct=1
+    sync=0
+    iodepth=32
+    ioengine=libaio
+
+    [full-write]
+    bs=1M
+    nrfiles=1
+    randrepeat=0
+    rw=write
+    refill_buffers
+    end_fsync=1
+    group_reporting
+  randread.fio: |
+    #Random Read Test
+    [global]
+    filename=/tmp/storage/fiofile
+    direct=1
+    sync=0
+    iodepth=32
+    ioengine=libaio
+
+    [random-read]
+    time_based
+    runtime={{ report_random_runtime }}
+    randrepeat=0
+    invalidate=1
+    verify=0
+    verify_fatal=0
+    numjobs={{ report_thread }}
+    rw=randread
+    blocksize=4k
+    group_reporting
+  randwrite.fio: |
+    #Random Write Test
+    [global]
+    filename=/tmp/storage/fiofile
+    direct=1
+    sync=0
+    iodepth=32
+    ioengine=libaio
+
+    [random-write]
+    time_based
+    runtime={{ report_random_runtime }}
+    randrepeat=0
+    invalidate=1
+    verify=0
+    verify_fatal=0
+    numjobs={{ report_thread }}
+    rw=randwrite
+    blocksize=4k
+    group_reporting
+  randrw70-30.fio: |
+    #Random Read-Write(70/30) Test
+    [global]
+    filename=/tmp/storage/fiofile
+    direct=1
+    sync=0
+    iodepth=32
+    ioengine=libaio
+
+    [random-write]
+    time_based
+    runtime={{ report_random_runtime }}
+    randrepeat=0
+    invalidate=1
+    verify=0
+    verify_fatal=0
+    numjobs={{ report_thread }}
+    rw=randrw
+    rwmixread=70
+    blocksize=4k
+    group_reporting
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: fio-j5

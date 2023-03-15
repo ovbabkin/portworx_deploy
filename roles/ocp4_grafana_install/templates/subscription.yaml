@@ -1,0 +1,14 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: grafana-operator
+  namespace: kube-system
+  labels:
+    operators.coreos.com/grafana-operator.kube-system: ''
+spec:
+  channel: alpha
+  installPlanApproval: Automatic
+  name: grafana-operator
+  source: community-operators
+  sourceNamespace: openshift-marketplace
+  startingCSV: {{grafana_version.stdout}}
